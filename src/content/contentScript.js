@@ -249,7 +249,29 @@
   // Clean up on page unload
   window.addEventListener('unload', disconnectObserver, { once: true });
 
+  // ─── Network Interceptor Injection ─────────────────────────
+  /**
+   * Injects the interceptor script into the MAIN world to patch native
+   * fetch and XHR before page scripts can cache references to them.
+   */
+  function injectInterceptor() {
+    try {
+      const script = document.createElement('script');
+      script.src = chrome.runtime.getURL('dist/interceptor.bundle.js');
+      // Clean up DOM after script executes
+      script.onload = () => script.remove();
+      const parent = document.head || document.documentElement;
+      if (parent) {
+        parent.appendChild(script);
+        console.log(`${TAG} Interceptor injected into MAIN world`);
+      }
+    } catch (e) {
+      console.warn(`${TAG} Failed to inject interceptor`, e);
+    }
+  }
+
   // ─── Start ─────────────────────────────────────────────────
+  injectInterceptor();
   init();
 
 })();
