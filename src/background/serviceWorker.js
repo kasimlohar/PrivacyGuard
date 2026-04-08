@@ -4,9 +4,12 @@
  * Handles background tasks such as dynamic extension badge updates
  * based on real-time detections from the content script.
  * Keeps an in-memory counter per tab for performance.
+ * Routes LLM tasks to llmApi.js
  *
  * @module serviceWorker
  */
+
+import { callLLM } from './llmApi.js';
 
 const TAG = '[PrivacyGuard BG]';
 
@@ -83,8 +86,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     tabDetections.set(tabId, data);
     updateBadge(tabId);
+    return false; // No async response needed
   }
-  // Let MV3 know we don't need async response
+
+  if (msg.type === 'PG_LLM_CLASSIFY') {
+    // 2. Delegate to LLM API (Async)
+    (async () => {
+      try {
+        const { pg_llm_api_key } = await chrome.storage.local.get('pg_llm_api_key');
+        if (!pg_llm_api_key) {
+          sendResponse({ category: 'NONE', confidence: 0, reason: 'missing_api_key' });
+          return;
+        }
+
+        const result = await callLLM(msg.text, pg_llm_api_key);
+        sendResponse(result);
+      } catch (error) {
+        console.error(`${TAG} LLM Routing Error:`, error);
+        sendResponse({ category: 'NONE', confidence: 0, reason: 'internal_routing_error' });
+      }
+    })();
+    return true; // Keep message channel alive for async response
+  }
+
   return false; 
 });
 
