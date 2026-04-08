@@ -7,17 +7,57 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="popup-container">
-    <div class="popup-header">
-      <span class="shield-icon">🛡️</span>
-      <h1>PrivacyGuard</h1>
-      <label class="toggle-switch">
-        <input type="checkbox" id="toggleEnabled" checked>
-        <span class="slider"></span>
-      </label>
-    </div>
-    <p class="status-text">Extension loaded. Detection engine active.</p>
+  <div class="container">
+    <!-- Header & Toggle -->
+    <header class="header">
+      <div class="brand">
+        <span class="logo">🛡️</span>
+        <h1 class="title">PrivacyGuard</h1>
+      </div>
+      <div class="toggle-container">
+        <span class="status-label" id="statusLabel">ON</span>
+        <label class="switch">
+          <input type="checkbox" id="enableToggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </header>
+
+    <div class="divider"></div>
+
+    <!-- Detection History -->
+    <section class="section">
+      <div class="section-header">
+        <h2>Recent Activity</h2>
+        <span class="count-badge" id="detectionCount">0</span>
+      </div>
+      <div class="detections-list" id="detectionsList">
+        <div class="empty-state">No recent activity.</div>
+      </div>
+    </section>
+
+    <!-- Allowlist -->
+    <section class="section">
+      <div class="section-header">
+        <h2>Allowlist</h2>
+      </div>
+      <form class="allowlist-form" id="allowlistForm">
+        <input type="text" id="domainInput" placeholder="Add domain (e.g., example.com)" autocomplete="off">
+        <button type="submit" class="btn btn-add">Add</button>
+      </form>
+      <div class="allowlist" id="allowlistContainer">
+        <!-- Allowlist items injected here -->
+      </div>
+    </section>
+
+    <div class="flex-spacer"></div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <button class="btn btn-ghost" id="clearBtn">Clear History</button>
+    </footer>
   </div>
-  <script src="popup.js"></script>
+
+  <script type="module" src="popup.js"></script>
 </body>
 </html>
