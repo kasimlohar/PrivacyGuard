@@ -272,6 +272,10 @@
       let llmFired = false;
       if (__PG.classifyWithLLM) {
         const hostname = location.hostname;
+        
+        // Show loading state BEFORE async call
+        if (__PG.showLoadingBanner) __PG.showLoadingBanner(field);
+
         const llmResult = await __PG.classifyWithLLM(value, hostname);
         
         if (llmResult) {

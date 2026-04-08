@@ -79,6 +79,13 @@
         color: #991B1B;
       }
 
+      /* Analysis (blue) */
+      .pg-banner--loading {
+        background: #EFF6FF;
+        border-left: 4px solid #3B82F6;
+        color: #1E3A8A;
+      }
+
       /* ─── Header ───────────────────────────────────────── */
       .pg-header {
         display: flex;
@@ -247,7 +254,7 @@
       <div class="pg-banner pg-banner--pii">
         <div class="pg-header">
           <span class="pg-icon">⚠️</span>
-          <span class="pg-title">Sensitive data detected: ${badges}</span>
+          <span class="pg-title">Sensitive info found: ${badges}</span>
           <button class="pg-close" data-action="close" aria-label="Close" title="Close">✕</button>
         </div>
         ${preview ? `
@@ -298,6 +305,20 @@
     `;
   }
 
+  /**
+   * Render the inner HTML content for the LLM loading banner.
+   */
+  function renderLoadingContent() {
+    return `
+      <div class="pg-banner pg-banner--loading">
+        <div class="pg-header">
+          <span class="pg-icon">⏳</span>
+          <span class="pg-title">Analyzing content using AI...</span>
+        </div>
+      </div>
+    `;
+  }
+
 
   // ─── Show / Hide ────────────────────────────────────────────
 
@@ -308,20 +329,27 @@
    * @param {object}  detection  — Detection result from runDetection().
    *   { piiResults, injectionResults, maskedValue, value }
    */
-  function showBanner(field, detection) {
-    if (!field || !detection) return;
+  function showBanner(field, detection, isLoading = false) {
+    if (!field) return;
+    if (!isLoading && !detection) return;
 
-    const hasInjection = detection.injectionResults?.length > 0;
-    const hasPII = detection.piiResults?.length > 0;
-    if (!hasInjection && !hasPII) return;
+    const hasInjection = detection?.injectionResults?.length > 0;
+    const hasPII = detection?.piiResults?.length > 0;
+    if (!isLoading && !hasInjection && !hasPII) return;
 
-    // Determine banner type — injection takes priority
-    const bannerType = hasInjection ? 'injection' : 'pii';
+    // Determine banner type
+    const bannerType = isLoading ? 'loading' : (hasInjection ? 'injection' : 'pii');
 
     // Check for existing banner
     const existing = fieldBanners.get(field);
     if (existing) {
-      // Update content in existing shadow DOM
+      // Avoid DOM trashing if it's identical
+      if (existing.type === bannerType && bannerType === 'loading') return;
+      if (existing.type !== bannerType) {
+        existing.host.setAttribute('data-pg-banner', bannerType);
+        existing.type = bannerType;
+      }
+      
       updateBannerContent(existing.shadow, detection, bannerType);
       return;
     }
@@ -341,13 +369,17 @@
 
     // Inject content
     const content = document.createElement('div');
-    content.innerHTML = hasInjection
-      ? renderInjectionContent(detection)
-      : renderPIIContent(detection);
+    if (isLoading) {
+      content.innerHTML = renderLoadingContent();
+    } else {
+      content.innerHTML = hasInjection ? renderInjectionContent(detection) : renderPIIContent(detection);
+    }
     shadow.appendChild(content);
 
     // Attach button event listeners
-    attachEvents(shadow, field, detection);
+    if (!isLoading) {
+      attachEvents(shadow, field, detection);
+    }
 
     // Insert banner ABOVE the field
     try {
@@ -377,13 +409,17 @@
     const contentDiv = shadow.querySelector('div');
     if (!contentDiv) return;
 
-    contentDiv.innerHTML = bannerType === 'injection'
-      ? renderInjectionContent(detection)
-      : renderPIIContent(detection);
+    if (bannerType === 'loading') {
+      contentDiv.innerHTML = renderLoadingContent();
+    } else {
+      contentDiv.innerHTML = bannerType === 'injection'
+        ? renderInjectionContent(detection)
+        : renderPIIContent(detection);
+    }
 
     // Re-attach events since innerHTML replaced the DOM
     const field = findFieldForShadow(shadow);
-    if (field) {
+    if (field && bannerType !== 'loading') {
       attachEvents(shadow, field, detection);
     }
   }
@@ -540,9 +576,14 @@
   }
 
 
+  function showLoadingBanner(field) {
+    showBanner(field, null, true);
+  }
+
   // ─── Exports ────────────────────────────────────────────────
   __PG.showBanner = showBanner;
   __PG.hideBanner = hideBanner;
+  __PG.showLoadingBanner = showLoadingBanner;
   __PG.hasBanner = hasBanner;
 
 })();
