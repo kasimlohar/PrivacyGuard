@@ -58,11 +58,37 @@
   }
 
 
+  // ─── Detection Pipeline ──────────────────────────────────────
+
+  /**
+   * Run the full detection pipeline on a text value.
+   *
+   * @param {string} value — The input text to analyze.
+   * @returns {{ piiResults: Array, injectionResults: Array, maskedValue: string|null }}
+   */
+  function runDetection(value) {
+    const scanForPII = __PG.scanForPII;
+    const scanForInjection = __PG.scanForInjection;
+    const maskAll = __PG.maskAll;
+
+    // Run both engines
+    const piiResults = scanForPII ? scanForPII(value) : [];
+    const injectionResults = scanForInjection ? scanForInjection(value) : [];
+
+    // Generate masked value if PII was found
+    const maskedValue = piiResults.length > 0 && maskAll
+      ? maskAll(value, piiResults)
+      : null;
+
+    return { piiResults, injectionResults, maskedValue };
+  }
+
+
   // ─── Event Handling ─────────────────────────────────────────
 
   /**
    * Core event handler — called after debounce/paste delay.
-   * Reads the field value, validates, and triggers detection.
+   * Reads the field value, validates, runs detection, and logs results.
    *
    * @param {Event}   event — The original DOM event.
    * @param {Element} field — The target input element.
@@ -73,22 +99,54 @@
     // Skip empty or very short input (avoids false positives on single chars)
     if (!value || value.trim().length < MIN_LENGTH) return;
 
-    const fieldType = getFieldType(field);
+    // Run detection pipeline
+    const { piiResults, injectionResults, maskedValue } = runDetection(value);
 
-    console.log(`${TAG} Event:`, {
-      type: event.type,
-      value: value.length > 50 ? value.slice(0, 50) + '…' : value,
-      length: value.length,
-      fieldType,
-    });
+    // Early exit if nothing detected
+    if (piiResults.length === 0 && injectionResults.length === 0) return;
 
-    // ── TODO (Day 2, Task 2.3): Wire detection engine ──────
-    // This is where scanForPII + scanForInjection will be called.
-    // const piiResults = scanForPII(value);
-    // const injResults = scanForInjection(value);
-    // if (piiResults.length > 0 || injResults.length > 0) {
-    //   handleDetections(field, value, piiResults, injResults);
-    // }
+    // ── Log injection results FIRST (higher priority) ─────
+    if (injectionResults.length > 0) {
+      console.warn(`${TAG}[⚠ INJECTION DETECTED]`, {
+        field: getFieldType(field),
+        count: injectionResults.length,
+        matches: injectionResults.map(r => ({
+          rule: r.ruleId,
+          severity: r.severity,
+          text: r.matchText,
+          description: r.description,
+        })),
+      });
+    }
+
+    // ── Log PII results ───────────────────────────────────
+    if (piiResults.length > 0) {
+      // Collect unique categories
+      const categories = [...new Set(piiResults.map(r => r.category))];
+
+      console.warn(`${TAG}[🔒 PII DETECTED]`, {
+        field: getFieldType(field),
+        categories,
+        count: piiResults.length,
+        matches: piiResults.map(r => ({
+          rule: r.ruleId,
+          category: r.category,
+          severity: r.severity,
+          text: r.matchText,
+        })),
+        masked: maskedValue,
+      });
+    }
+
+    // Store last detection result on the namespace for UI modules to read
+    __PG.lastDetection = {
+      field,
+      value,
+      piiResults,
+      injectionResults,
+      maskedValue,
+      timestamp: Date.now(),
+    };
   }
 
 
@@ -187,5 +245,6 @@
   __PG.detachFieldListeners = detachFieldListeners;
   __PG.getFieldValue = getFieldValue;
   __PG.getFieldType = getFieldType;
+  __PG.runDetection = runDetection;
 
 })();

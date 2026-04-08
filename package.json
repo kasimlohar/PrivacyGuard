@@ -4,6 +4,7 @@
   "description": "Real-time sensitive data detection and prompt injection protection for browser inputs.",
   "type": "module",
   "scripts": {
+    "build": "node scripts/build.js",
     "test": "node --experimental-vm-modules tests/runAllTests.mjs",
     "test:regex": "node --experimental-vm-modules tests/regexEngine.smoke.mjs",
     "test:masker": "node --experimental-vm-modules tests/masker.smoke.mjs",
