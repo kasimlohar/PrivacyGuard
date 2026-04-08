@@ -318,6 +318,11 @@
     if (__PG.showBanner) {
       __PG.showBanner(field, __PG.lastDetection);
     }
+
+    // ── Show blocking modal for injection or critical PII ─
+    if (__PG.showModal) {
+      __PG.showModal(field, __PG.lastDetection);
+    }
   }
 
 
