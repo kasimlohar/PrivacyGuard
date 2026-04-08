@@ -22,7 +22,14 @@ const els = {
   allowlistForm: document.getElementById('allowlistForm'),
   domainInput: document.getElementById('domainInput'),
   allowlistContainer: document.getElementById('allowlistContainer'),
-  clearBtn: document.getElementById('clearBtn')
+  clearBtn: document.getElementById('clearBtn'),
+  
+  // API Key Elements
+  apiKeyForm: document.getElementById('apiKeyForm'),
+  apiKeyInput: document.getElementById('apiKeyInput'),
+  saveKeyBtn: document.getElementById('saveKeyBtn'),
+  clearKeyBtn: document.getElementById('clearKeyBtn'),
+  apiKeyStatus: document.getElementById('apiKeyStatus')
 };
 
 // ─── Initialization ──────────────────────────────────────────
@@ -31,6 +38,7 @@ async function init() {
   await renderToggle();
   await renderDetections();
   await renderAllowlist();
+  await initAPISettings();
   bindEvents();
 }
 
@@ -90,6 +98,26 @@ async function renderAllowlist() {
   `).join('');
 }
 
+// ─── API Settings ────────────────────────────────────────────
+
+async function initAPISettings() {
+  const result = await chrome.storage.local.get('pg_llm_api_key');
+  updateApiStatus(!!result.pg_llm_api_key);
+}
+
+function updateApiStatus(isSaved, textOverride = null) {
+  if (textOverride) {
+    els.apiKeyStatus.textContent = textOverride;
+    els.apiKeyStatus.classList.add('success');
+  } else if (isSaved) {
+    els.apiKeyStatus.textContent = 'Saved ✓';
+    els.apiKeyStatus.classList.add('success');
+  } else {
+    els.apiKeyStatus.textContent = 'Not set';
+    els.apiKeyStatus.classList.remove('success');
+  }
+}
+
 // ─── Event Binding ───────────────────────────────────────────
 
 function bindEvents() {
@@ -126,6 +154,33 @@ function bindEvents() {
       await removeFromAllowlist(domain);
       await renderAllowlist();
     }
+  });
+
+  // API Key Form specific
+  els.apiKeyInput.addEventListener('input', (e) => {
+    els.saveKeyBtn.disabled = e.target.value.trim().length === 0;
+  });
+
+  els.apiKeyForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const key = els.apiKeyInput.value.trim();
+    if (key) {
+      await chrome.storage.local.set({ pg_llm_api_key: key });
+      els.apiKeyInput.value = '';
+      els.saveKeyBtn.disabled = true;
+      
+      updateApiStatus(true, 'Saved ✓');
+      setTimeout(() => {
+        updateApiStatus(true);
+      }, 2000);
+    }
+  });
+
+  els.clearKeyBtn.addEventListener('click', async () => {
+    await chrome.storage.local.remove('pg_llm_api_key');
+    els.apiKeyInput.value = '';
+    els.saveKeyBtn.disabled = true;
+    updateApiStatus(false);
   });
 
   // Listen for storage changes in case content script makes a detection while popup is open

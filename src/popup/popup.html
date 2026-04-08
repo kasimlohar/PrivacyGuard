@@ -50,6 +50,21 @@
       </div>
     </section>
 
+    <!-- AI Settings -->
+    <section class="section">
+      <div class="section-header">
+        <h2>AI Settings</h2>
+        <span class="status-badge" id="apiKeyStatus">Not set</span>
+      </div>
+      <form class="allowlist-form" id="apiKeyForm" style="flex-direction: column; align-items: stretch;">
+        <input type="password" id="apiKeyInput" placeholder="Enter Gemini API Key" autocomplete="off" style="margin-bottom: 8px;">
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+          <button type="button" class="btn btn-ghost" id="clearKeyBtn" style="padding: 6px 12px; margin: 0; background: rgba(255, 255, 255, 0.05);">Clear</button>
+          <button type="submit" class="btn btn-add" id="saveKeyBtn" disabled>Save Key</button>
+        </div>
+      </form>
+    </section>
+
     <div class="flex-spacer"></div>
 
     <!-- Footer -->

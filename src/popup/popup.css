@@ -163,6 +163,23 @@ input:checked + .slider:before {
   border-radius: 12px;
 }
 
+.status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  transition: all 0.2s ease;
+}
+
+.status-badge.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
 
 /* ─── Detection Items ────────────────────────────── */
 .detections-list {
@@ -252,6 +269,11 @@ input:checked + .slider:before {
   font-weight: 600;
   font-size: 12px;
   transition: all 0.15s ease;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-add {
