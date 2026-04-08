@@ -313,6 +313,11 @@
       maskedValue,
       timestamp: Date.now(),
     };
+
+    // ── Show warning banner above the field ───────────────
+    if (__PG.showBanner) {
+      __PG.showBanner(field, __PG.lastDetection);
+    }
   }
 
 

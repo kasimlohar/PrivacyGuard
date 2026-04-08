@@ -15,6 +15,7 @@
       "js": [
         "dist/detection.bundle.js",
         "src/content/fieldScanner.js",
+        "src/ui/warningBanner.js",
         "src/content/contentScript.js"
       ],
       "run_at": "document_start",
