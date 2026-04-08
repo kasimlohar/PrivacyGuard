@@ -208,6 +208,22 @@
     return { piiResults, injectionResults, maskedValue };
   }
 
+  function applyHighlight(field, type) {
+    field.style.transition = 'outline 150ms ease';
+    if (type === 'INJECTION') {
+      field.style.outline = '2px solid #ef4444';
+    } else if (type === 'CRITICAL') {
+      field.style.outline = '2px solid #f97316';
+    } else if (type === 'PII') {
+      field.style.outline = '2px solid #eab308';
+    }
+  }
+
+  function clearHighlight(field) {
+    if (field.style.outline) {
+      field.style.outline = '';
+    }
+  }
 
   // ─── Event Handling ─────────────────────────────────────────
 
@@ -242,13 +258,46 @@
     const value = getFieldValue(field);
 
     // Skip empty or very short input (avoids false positives on single chars)
-    if (!value || value.trim().length < MIN_LENGTH) return;
+    if (!value || value.trim().length < MIN_LENGTH) {
+      clearHighlight(field);
+      if (__PG.hideBanner) __PG.hideBanner(field);
+      return;
+    }
 
     // Run detection pipeline
-    const { piiResults, injectionResults, maskedValue } = runDetection(value);
+    let { piiResults, injectionResults, maskedValue } = runDetection(value);
 
-    // Early exit if nothing detected
-    if (piiResults.length === 0 && injectionResults.length === 0) return;
+    // Early exit if nothing detected by regex → LLM Fallback
+    if (piiResults.length === 0 && injectionResults.length === 0) {
+      let llmFired = false;
+      if (__PG.classifyWithLLM) {
+        const hostname = location.hostname;
+        const llmResult = await __PG.classifyWithLLM(value, hostname);
+        
+        if (llmResult) {
+          llmFired = true;
+          const proxyResult = {
+            ruleId: llmResult.ruleId || 'LLM-01',
+            category: llmResult.category,
+            severity: llmResult.severity || 'HIGH',
+            matchText: value.slice(0, 50),
+            description: llmResult.description || 'Flagged by AI analysis',
+          };
+          
+          if (llmResult.category === 'INJECTION') {
+            injectionResults = [proxyResult];
+          } else {
+            piiResults = [proxyResult];
+          }
+        }
+      }
+
+      if (!llmFired) {
+        clearHighlight(field);
+        if (__PG.hideBanner) __PG.hideBanner(field);
+        return;
+      }
+    }
 
     // ── Log injection results FIRST (higher priority) ─────
     if (injectionResults.length > 0) {
@@ -343,6 +392,15 @@
       }
     } catch (err) {
       // Ignore if extension context invalidated
+    }
+
+    // ── Apply Actionable Visual Highlight to Field ────────
+    if (injectionResults.length > 0) {
+      applyHighlight(field, 'INJECTION');
+    } else if (piiResults.some(r => r.severity === 'CRITICAL')) {
+      applyHighlight(field, 'CRITICAL');
+    } else {
+      applyHighlight(field, 'PII');
     }
   }
 

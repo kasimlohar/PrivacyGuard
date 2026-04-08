@@ -28,6 +28,7 @@ const SOURCES = [
   'src/detection/injectionScanner.js',
   'src/utils/masker.js',
   'src/utils/storage.js',
+  'src/detection/llmClassifier.js',
 ];
 
 // ─── Build ─────────────────────────────────────────────────────
@@ -89,6 +90,7 @@ function build() {
   bundle += `  __PG.scanForInjection = scanForInjection;\n`;
   bundle += `  __PG.maskValue = maskValue;\n`;
   bundle += `  __PG.maskAll = maskAll;\n`;
+  bundle += `  __PG.classifyWithLLM = classifyWithLLM;\n`;
   bundle += `  // Storage API\n`;
   bundle += `  __PG.setEnabled = setEnabled;\n`;
   bundle += `  __PG.isEnabled = isEnabled;\n`;
