@@ -89,10 +89,11 @@
 
     console.log(`${TAG} Field discovered: ${descriptor}`);
 
-    // ── TODO (Day 2, Task 2.2): Attach input/paste/keyup listeners ──
-    // fieldScanner.attachListeners(field);
+    // Attach input/paste/keyup listeners (from fieldScanner.js)
+    if (window.__PrivacyGuard && window.__PrivacyGuard.attachFieldListeners) {
+      window.__PrivacyGuard.attachFieldListeners(field);
+    }
   }
-
 
   // ─── Initial Scan ──────────────────────────────────────────
 
