@@ -173,7 +173,7 @@ privacyguard/
 | # | Task | Time | Success Criteria |
 |---|------|------|-----------------|
 | 4.1 | Build `serviceWorker.js` — message router, storage management, enable/disable toggle | 1.5h | Background worker responds to content script messages, reads/writes storage |
-| 4.2 | Build `llmApi.js` — fetch wrapper for Anthropic Claude Haiku with prompt template, 2s timeout, fail-open | 1.5h | Calling with test input returns `{category, confidence, reason}`; timeout returns `NONE` |
+| 4.2 | Build `llmApi.js` — fetch wrapper for Gemini 2.5 flash with prompt template, 2s timeout, fail-open | 1.5h | Calling with test input returns `{category, confidence, reason}`; timeout returns `NONE` |
 | 4.3 | Build `llmClassifier.js` (content-side) — decision logic + pre-masking before LLM call | 1h | Only triggers on AI domain + no regex match + text > 50 chars; pre-masks before sending |
 | 4.4 | Build Popup — `popup.html` + `popup.js` + `popup.css` (toggle, detections, allowlist) | 2h | Popup shows current domain, toggle works, recent detections render, "Allow this site" works |
 | 4.5 | Polish: field highlighting (amber/red borders), banner animation refinement, edge case fixes | 1.5h | No visual glitches on ChatGPT, Google Forms, GitHub |

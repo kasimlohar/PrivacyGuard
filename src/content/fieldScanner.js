@@ -323,6 +323,27 @@
     if (__PG.showModal) {
       __PG.showModal(field, __PG.lastDetection);
     }
+
+    // ── Notify background worker to update badge ──────────
+    try {
+      if (injectionResults.length > 0) {
+        chrome.runtime.sendMessage({
+          type: 'PG_DETECTION',
+          category: 'INJECTION',
+          severity: 'INJECTION'
+        });
+      }
+      
+      for (const r of piiResults) {
+        chrome.runtime.sendMessage({
+          type: 'PG_DETECTION',
+          category: r.category,
+          severity: r.severity
+        });
+      }
+    } catch (err) {
+      // Ignore if extension context invalidated
+    }
   }
 
 
