@@ -26,19 +26,19 @@ const CONFIDENCE_THRESHOLD = 0.75;
 function preMaskText(text) {
   let masked = text;
   const piiResults = scanForPII(text);
-  
+
   if (piiResults.length === 0) return masked;
 
   // Process from end to start to avoid index shifting
   const sorted = [...piiResults].sort((a, b) => b.startIndex - a.startIndex);
-  
+
   for (const r of sorted) {
     masked =
       masked.slice(0, r.startIndex) +
       '[REDACTED]' +
       masked.slice(r.endIndex);
   }
-  
+
   return masked;
 }
 
@@ -55,7 +55,7 @@ export async function classifyWithLLM(text, domain) {
 
   // 1. Decision Logic Constraints
   if (text.length < MIN_LENGTH) return null;
-  
+
   const isAiDomain = AI_DOMAINS.some(aiDomain => domain.includes(aiDomain));
   if (!isAiDomain) return null;
 
@@ -69,7 +69,7 @@ export async function classifyWithLLM(text, domain) {
   // Even if piiResults was 0, it is best practice to run safety masking 
   // in case logic changes above to permit partial detection overlaps.
   let safeText = preMaskText(text);
-  
+
   if (safeText.length > MAX_LENGTH) {
     safeText = safeText.slice(0, MAX_LENGTH);
   }
@@ -101,7 +101,7 @@ export async function classifyWithLLM(text, domain) {
 
   try {
     const result = await Promise.race([fetchPromise, timeoutPromise]);
-    
+
     // 4. Response handling
     if (!result || !result.category || result.category === 'NONE') {
       return null;
