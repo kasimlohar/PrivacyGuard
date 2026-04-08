@@ -30,6 +30,16 @@
   /** Per-field debounce timers — one timer per field. */
   const debounceTimers = new WeakMap();
 
+  /** Stores original (unmasked) values so the user can restore them. */
+  const originalValues = new WeakMap();
+
+  /**
+   * Guard flag — set to true while we're programmatically changing a field
+   * value. Prevents our own input listeners from re-triggering detection
+   * on the masked text we just wrote.
+   */
+  let isMasking = false;
+
 
   // ─── Value Extraction ───────────────────────────────────────
 
@@ -55,6 +65,121 @@
   function getFieldType(field) {
     if (field.isContentEditable) return 'contenteditable';
     return field.tagName.toLowerCase();
+  }
+
+
+  // ─── Cursor Helpers ─────────────────────────────────────────
+
+  /**
+   * Get the current cursor (caret) position in a field.
+   * Returns -1 for contenteditable (selection API is complex; MVP skips it).
+   *
+   * @param {Element} field
+   * @returns {number}
+   */
+  function getCursorPosition(field) {
+    if (field.isContentEditable) return -1;
+    try {
+      return field.selectionStart ?? -1;
+    } catch {
+      return -1;
+    }
+  }
+
+  /**
+   * Set the cursor position in a field after masking.
+   * Clamps to field length to avoid out-of-bounds.
+   *
+   * @param {Element} field
+   * @param {number} pos — Desired cursor position.
+   */
+  function setCursorPosition(field, pos) {
+    if (field.isContentEditable || pos < 0) return;
+    try {
+      const clamped = Math.min(pos, (field.value || '').length);
+      field.setSelectionRange(clamped, clamped);
+    } catch {
+      // Some input types (date, number) don't support setSelectionRange
+    }
+  }
+
+
+  // ─── In-Field Masking ───────────────────────────────────────
+
+  /**
+   * Apply a masked value directly into the field.
+   *
+   * Steps:
+   *   1. Save original value in WeakMap (for potential restore).
+   *   2. Save cursor position.
+   *   3. Set the guard flag to prevent event-loop.
+   *   4. Write masked value into the field.
+   *   5. Mark element with data attribute.
+   *   6. Restore cursor position.
+   *   7. Clear guard flag.
+   *
+   * @param {Element} field       — The input element.
+   * @param {string}  maskedValue — The masked text to display.
+   * @param {string}  originalVal — The original unmasked text.
+   */
+  function applyMask(field, maskedValue, originalVal) {
+    // Don't mask if values are identical (nothing to redact)
+    if (maskedValue === originalVal) return;
+
+    // Store original so user can restore later
+    originalValues.set(field, originalVal);
+
+    // Save cursor before we mutate the value
+    const cursorPos = getCursorPosition(field);
+
+    // Set guard — our own event listeners will see this and skip
+    isMasking = true;
+
+    try {
+      if (field.isContentEditable) {
+        field.innerText = maskedValue;
+      } else {
+        field.value = maskedValue;
+      }
+
+      // Mark element so CSS/UI can target it
+      field.dataset.privacyguardMasked = 'true';
+
+      // Restore cursor (approximate — length may have changed)
+      if (cursorPos >= 0) {
+        setCursorPosition(field, cursorPos);
+      }
+    } finally {
+      // Always clear the guard, even if something throws
+      isMasking = false;
+    }
+  }
+
+  /**
+   * Restore a field's original (unmasked) value.
+   * Called when the user clicks "Show original" in the UI.
+   *
+   * @param {Element} field
+   * @returns {boolean} — true if restored, false if no original existed.
+   */
+  function restoreOriginal(field) {
+    const original = originalValues.get(field);
+    if (original == null) return false;
+
+    isMasking = true;
+    try {
+      if (field.isContentEditable) {
+        field.innerText = original;
+      } else {
+        field.value = original;
+      }
+      delete field.dataset.privacyguardMasked;
+      originalValues.delete(field);
+    } finally {
+      isMasking = false;
+    }
+
+    return true;
   }
 
 
@@ -94,6 +219,9 @@
    * @param {Element} field — The target input element.
    */
   function handleFieldEvent(event, field) {
+    // Guard: skip if we're the ones changing the value (prevents loops)
+    if (isMasking) return;
+
     const value = getFieldValue(field);
 
     // Skip empty or very short input (avoids false positives on single chars)
@@ -136,6 +264,11 @@
         })),
         masked: maskedValue,
       });
+    }
+
+    // ── Apply in-field masking (PII only, NOT injection) ───
+    if (piiResults.length > 0 && maskedValue) {
+      applyMask(field, maskedValue, value);
     }
 
     // Store last detection result on the namespace for UI modules to read
@@ -246,5 +379,8 @@
   __PG.getFieldValue = getFieldValue;
   __PG.getFieldType = getFieldType;
   __PG.runDetection = runDetection;
+  __PG.applyMask = applyMask;
+  __PG.restoreOriginal = restoreOriginal;
+  __PG.originalValues = originalValues;
 
 })();
