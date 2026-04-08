@@ -1,0 +1,15 @@
+{
+  "name": "privacyguard",
+  "version": "0.1.0",
+  "description": "Real-time sensitive data detection and prompt injection protection for browser inputs.",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-vm-modules tests/runAllTests.mjs",
+    "test:regex": "node --experimental-vm-modules tests/regexEngine.smoke.mjs",
+    "test:masker": "node --experimental-vm-modules tests/masker.smoke.mjs",
+    "test:injection": "node --experimental-vm-modules tests/injectionScanner.smoke.mjs"
+  },
+  "keywords": ["privacy", "security", "chrome-extension", "pii", "injection"],
+  "license": "MIT",
+  "private": true
+}
