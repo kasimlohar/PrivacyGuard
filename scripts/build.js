@@ -27,6 +27,7 @@ const SOURCES = [
   'src/detection/regexEngine.js',
   'src/detection/injectionScanner.js',
   'src/utils/masker.js',
+  'src/utils/storage.js',
 ];
 
 // ─── Build ─────────────────────────────────────────────────────
@@ -81,12 +82,24 @@ function build() {
   bundle += `  __PG.CATEGORY = CATEGORY;\n`;
   bundle += `  __PG.SEVERITY = SEVERITY;\n`;
   bundle += `  __PG.SEVERITY_WEIGHT = SEVERITY_WEIGHT;\n`;
+  bundle += `  __PG.STORAGE_KEYS = STORAGE_KEYS;\n`;
   bundle += `  __PG.RULES = RULES;\n`;
   bundle += `  __PG.INJECTION_PATTERNS = INJECTION_PATTERNS;\n`;
   bundle += `  __PG.scanForPII = scanForPII;\n`;
   bundle += `  __PG.scanForInjection = scanForInjection;\n`;
   bundle += `  __PG.maskValue = maskValue;\n`;
-  bundle += `  __PG.maskAll = maskAll;\n\n`;
+  bundle += `  __PG.maskAll = maskAll;\n`;
+  bundle += `  // Storage API\n`;
+  bundle += `  __PG.setEnabled = setEnabled;\n`;
+  bundle += `  __PG.isEnabled = isEnabled;\n`;
+  bundle += `  __PG.addToAllowlist = addToAllowlist;\n`;
+  bundle += `  __PG.removeFromAllowlist = removeFromAllowlist;\n`;
+  bundle += `  __PG.isAllowed = isAllowed;\n`;
+  bundle += `  __PG.getAllowlist = getAllowlist;\n`;
+  bundle += `  __PG.addDetection = addDetection;\n`;
+  bundle += `  __PG.getDetections = getDetections;\n`;
+  bundle += `  __PG.clearDetections = clearDetections;\n`;
+  bundle += `  __PG.getDetectionCount = getDetectionCount;\n\n`;
   bundle += `})();\n`;
 
   // Write output

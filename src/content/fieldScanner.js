@@ -218,9 +218,26 @@
    * @param {Event}   event — The original DOM event.
    * @param {Element} field — The target input element.
    */
-  function handleFieldEvent(event, field) {
+  async function handleFieldEvent(event, field) {
     // Guard: skip if we're the ones changing the value (prevents loops)
     if (isMasking) return;
+
+    // Guard: skip if extension is disabled
+    if (__PG.isEnabled) {
+      const enabled = await __PG.isEnabled();
+      if (!enabled) return;
+    }
+
+    // Guard: skip if this domain is allowlisted
+    if (__PG.isAllowed) {
+      try {
+        const domain = location.hostname;
+        const allowed = await __PG.isAllowed(domain);
+        if (allowed) return;
+      } catch {
+        // If storage fails, continue with detection
+      }
+    }
 
     const value = getFieldValue(field);
 
@@ -269,6 +286,22 @@
     // ── Apply in-field masking (PII only, NOT injection) ───
     if (piiResults.length > 0 && maskedValue) {
       applyMask(field, maskedValue, value);
+
+      // ── Persist detections to chrome.storage ────────────
+      if (__PG.addDetection) {
+        const domain = location.hostname;
+        for (const r of piiResults) {
+          __PG.addDetection({
+            domain,
+            category: r.category,
+            severity: r.severity,
+            ruleId: r.ruleId,
+            maskedValue: r.matchText
+              ? r.matchText.slice(0, 30) + (r.matchText.length > 30 ? '…' : '')
+              : '',
+          }).catch(() => {}); // Fire and forget — don't block UI
+        }
+      }
     }
 
     // Store last detection result on the namespace for UI modules to read
