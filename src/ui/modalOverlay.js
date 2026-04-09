@@ -18,7 +18,7 @@
   const __PG = (window.__PrivacyGuard = window.__PrivacyGuard || {});
 
   // ─── Singleton State ────────────────────────────────────────
-  /** @type {{ host: HTMLElement, shadow: ShadowRoot, field: Element } | null} */
+  /** @type {{ host: HTMLElement, shadow: ShadowRoot, field: Element, signature: string, _keyHandler: Function|null } | null} */
   let activeModal = null;
 
 
@@ -43,7 +43,8 @@
         background: rgba(0, 0, 0, 0.6);
         backdrop-filter: blur(4px);
         -webkit-backdrop-filter: blur(4px);
-        animation: pg-fade-in 200ms ease-out;
+        animation: pg-fade-in 280ms ease-out;
+        transition: opacity 180ms ease;
         font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
       }
 
@@ -61,7 +62,8 @@
         padding: 32px;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3),
                     0 8px 24px rgba(0, 0, 0, 0.15);
-        animation: pg-scale-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+        animation: pg-scale-in 300ms cubic-bezier(0.16, 1, 0.3, 1);
+        transition: opacity 180ms ease, transform 180ms ease;
         position: relative;
         color: #1e293b;
         line-height: 1.5;
@@ -355,6 +357,13 @@
     return items.join('');
   }
 
+  function buildDetectionSignature(field, detection) {
+    const value = detection?.value || '';
+    const pii = (detection?.piiResults || []).map((r) => `${r.ruleId}:${r.severity}:${r.matchText}`);
+    const injection = (detection?.injectionResults || []).map((r) => `${r.ruleId}:${r.severity}:${r.matchText}`);
+    return `${value}::${field?.tagName || ''}::${pii.join('|')}::${injection.join('|')}`;
+  }
+
 
   // ─── Show / Hide ────────────────────────────────────────────
 
@@ -372,6 +381,11 @@
 
     // Only show for injection or critical PII
     if (!hasInjection && !hasCriticalPII) return;
+
+    const signature = buildDetectionSignature(field, detection);
+    if (activeModal && activeModal.field === field && activeModal.signature === signature) {
+      return;
+    }
 
     // Close existing modal first (singleton)
     if (activeModal) {
@@ -398,14 +412,14 @@
     content.innerHTML = renderModalContent(detection, isInjection);
     shadow.appendChild(content);
 
+    // Store active modal reference before event binding.
+    activeModal = { host, shadow, field, signature, _keyHandler: null };
+
     // Attach event handlers
     attachEvents(shadow, field, detection, isInjection);
 
     // Add to page
     document.body.appendChild(host);
-
-    // Store active modal reference
-    activeModal = { host, shadow, field };
 
     // Prevent background scrolling
     document.body.style.overflow = 'hidden';
@@ -428,24 +442,24 @@
   function hideModal() {
     if (!activeModal) return;
 
-    const { host, field } = activeModal;
+    const { host } = activeModal;
 
     // Animate out
     const overlay = activeModal.shadow.querySelector('.pg-overlay');
     if (overlay) {
-      overlay.style.transition = 'opacity 150ms ease';
+      overlay.style.transition = 'opacity 180ms ease';
       overlay.style.opacity = '0';
 
       const modal = activeModal.shadow.querySelector('.pg-modal');
       if (modal) {
-        modal.style.transition = 'transform 150ms ease, opacity 150ms ease';
+        modal.style.transition = 'transform 180ms ease, opacity 180ms ease';
         modal.style.transform = 'scale(0.95) translateY(8px)';
         modal.style.opacity = '0';
       }
 
       setTimeout(() => {
         host.remove();
-      }, 160);
+      }, 190);
     } else {
       host.remove();
     }
@@ -482,7 +496,7 @@
           }
           // Hide the banner too
           if (__PG.hideBanner) {
-            __PG.hideBanner(field);
+            __PG.hideBanner(field, { immediate: true });
           }
           field.focus();
           break;
@@ -494,7 +508,7 @@
           }));
           hideModal();
           if (__PG.hideBanner) {
-            __PG.hideBanner(field);
+            __PG.hideBanner(field, { immediate: true });
           }
           break;
 
@@ -524,8 +538,6 @@
     if (activeModal) {
       activeModal._keyHandler = keyHandler;
     }
-    // Also store on a temporary place for the initial setup
-    shadow._keyHandler = keyHandler;
   }
 
   /**

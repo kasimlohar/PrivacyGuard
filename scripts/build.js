@@ -40,8 +40,8 @@ function stripModuleSyntax(code) {
     .replace(/^import\s+.*from\s+['"][^'"]+['"];?\s*$/gm, '')
     // Remove export { ... } blocks
     .replace(/^export\s+\{[^}]*\};?\s*$/gm, '')
-    // Strip 'export' from inline declarations (export const → const)
-    .replace(/^export\s+(const|let|var|function|class)\s/gm, '$1 ');
+    // Strip 'export' from inline declarations (export const → const, export async function → async function)
+    .replace(/^export\s+(async\s+)?(const|let|var|function|class)\s/gm, '$1$2 ');
 }
 
 function build() {
@@ -123,6 +123,7 @@ function buildInterceptor() {
     'src/utils/constants.js',
     'src/detection/regexEngine.js',
     'src/detection/injectionScanner.js',
+    'src/utils/masker.js',
     'src/content/interceptor.js'
   ];
 

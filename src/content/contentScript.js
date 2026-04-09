@@ -36,8 +36,7 @@
   const INPUT_SELECTOR = [
     'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="image"]):not([type="range"]):not([type="color"])',
     'textarea',
-    '[contenteditable="true"]',
-    '[contenteditable=""]',
+    '[contenteditable]:not([contenteditable="false"])'
   ].join(', ');
 
 

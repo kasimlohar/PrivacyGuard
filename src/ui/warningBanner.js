@@ -24,6 +24,10 @@
   // ─── State ──────────────────────────────────────────────────
   /** Maps field → { host, shadow, type } for one-banner-per-field. */
   const fieldBanners = new WeakMap();
+  const boundShadows = new WeakSet();
+  const bannerShownAt = new WeakMap();
+  const pendingHideTimers = new WeakMap();
+  const MIN_BANNER_DISPLAY_MS = 800;
 
 
   // ─── Styles ─────────────────────────────────────────────────
@@ -48,7 +52,7 @@
       @keyframes pg-slide-down {
         from {
           opacity: 0;
-          transform: translateY(-10px);
+          transform: translateY(-8px);
         }
         to {
           opacity: 1;
@@ -58,11 +62,13 @@
 
       /* ─── Banner container ─────────────────────────────── */
       .pg-banner {
-        animation: pg-slide-down 150ms ease-out;
+        animation: pg-slide-down 250ms cubic-bezier(0.16, 1, 0.3, 1);
         border-radius: 8px;
         padding: 12px 16px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12),
                     0 1px 3px rgba(0, 0, 0, 0.08);
+        /* Pre-wire transitions for smooth hide */
+        transition: opacity 200ms ease, transform 200ms ease;
       }
 
       /* PII (amber) */
@@ -165,15 +171,24 @@
       }
 
       /* Primary (amber) */
-      .pg-btn--edit {
+      .pg-btn--protect {
         background: #F59E0B;
         color: #fff;
       }
-      .pg-btn--edit:hover {
+      .pg-btn--protect:hover {
         background: #D97706;
       }
 
       /* Ghost (amber) */
+      .pg-btn--edit {
+        background: transparent;
+        color: #92400E;
+        border: 1px solid #D97706;
+      }
+      .pg-btn--edit:hover {
+        background: rgba(245, 158, 11, 0.1);
+      }
+
       .pg-btn--send {
         background: transparent;
         color: #92400E;
@@ -264,7 +279,8 @@
         ` : ''}
         <div class="pg-actions">
           <button class="pg-btn pg-btn--edit" data-action="edit">Edit Input</button>
-          <button class="pg-btn pg-btn--send" data-action="send">Send Anyway →</button>
+          <button class="pg-btn pg-btn--protect" data-action="protect">Protect</button>
+          <button class="pg-btn pg-btn--send" data-action="send">Send Anyway</button>
         </div>
       </div>
     `;
@@ -319,8 +335,33 @@
     `;
   }
 
+  function buildDetectionSignature(detection, bannerType) {
+    if (bannerType === 'loading') return 'loading';
+    if (!detection) return 'none';
+
+    if (bannerType === 'injection') {
+      const items = (detection.injectionResults || [])
+        .map((r) => `${r.ruleId || ''}:${r.matchText || ''}:${r.severity || ''}`)
+        .join('|');
+      return `inj:${items}`;
+    }
+
+    const pii = (detection.piiResults || [])
+      .map((r) => `${r.ruleId || ''}:${r.matchText || ''}:${r.severity || ''}`)
+      .join('|');
+    return `pii:${pii}::${detection.maskedValue || ''}`;
+  }
+
 
   // ─── Show / Hide ────────────────────────────────────────────
+
+  function clearPendingHide(field) {
+    const pending = pendingHideTimers.get(field);
+    if (pending) {
+      clearTimeout(pending);
+      pendingHideTimers.delete(field);
+    }
+  }
 
   /**
    * Show or update a warning banner above a field.
@@ -339,18 +380,35 @@
 
     // Determine banner type
     const bannerType = isLoading ? 'loading' : (hasInjection ? 'injection' : 'pii');
+    const signature = buildDetectionSignature(detection, bannerType);
+    const shouldTrackDisplayWindow = bannerType !== 'loading';
 
     // Check for existing banner
     const existing = fieldBanners.get(field);
     if (existing) {
-      // Avoid DOM trashing if it's identical
-      if (existing.type === bannerType && bannerType === 'loading') return;
+      const previousType = existing.type;
+
+      // Avoid DOM trashing/flicker when the visible state is unchanged
+      if (existing.type === bannerType && existing.signature === signature) {
+        clearPendingHide(field);
+        return;
+      }
       if (existing.type !== bannerType) {
         existing.host.setAttribute('data-pg-banner', bannerType);
         existing.type = bannerType;
       }
-      
-      updateBannerContent(existing.shadow, detection, bannerType);
+      existing.detection = detection || null;
+      existing.signature = signature;
+
+      updateBannerContent(existing.shadow, detection, bannerType, field);
+
+      clearPendingHide(field);
+      if (shouldTrackDisplayWindow && previousType === 'loading') {
+        bannerShownAt.set(field, Date.now());
+      }
+      if (!shouldTrackDisplayWindow) {
+        bannerShownAt.delete(field);
+      }
       return;
     }
 
@@ -381,18 +439,41 @@
       attachEvents(shadow, field, detection);
     }
 
-    // Insert banner ABOVE the field
+    // Insert banner ABOVE the field using fixed positioning on document.body.
+    // We cannot use insertAdjacentElement('beforebegin') because on SPA sites
+    // like ChatGPT, the field's parent container has overflow:hidden / fixed 
+    // height / flexbox layout that clips unknown siblings, and React's
+    // reconciler may remove unrecognized DOM nodes entirely.
     try {
-      field.insertAdjacentElement('beforebegin', host);
-    } catch {
-      // If insertAdjacentElement fails (rare), try parent append
-      if (field.parentNode) {
-        field.parentNode.insertBefore(host, field);
-      }
+      const rect = field.getBoundingClientRect();
+      host.style.cssText = `
+        position: fixed;
+        top: ${Math.max(0, rect.top - 4)}px;
+        left: ${rect.left}px;
+        width: ${Math.min(rect.width, 600)}px;
+        z-index: 999999;
+        transform: translateY(-100%);
+        pointer-events: all;
+      `;
+      document.body.appendChild(host);
+    } catch (err) {
+      console.warn(`${TAG} Failed to show banner:`, err);
     }
 
     // Track this banner
-    fieldBanners.set(field, { host, shadow, type: bannerType });
+    fieldBanners.set(field, {
+      host,
+      shadow,
+      type: bannerType,
+      detection: detection || null,
+      signature,
+    });
+    clearPendingHide(field);
+    if (shouldTrackDisplayWindow) {
+      bannerShownAt.set(field, Date.now());
+    } else {
+      bannerShownAt.delete(field);
+    }
 
     console.log(`${TAG} Banner shown: ${bannerType}`);
   }
@@ -404,7 +485,7 @@
    * @param {object}     detection
    * @param {string}     bannerType
    */
-  function updateBannerContent(shadow, detection, bannerType) {
+  function updateBannerContent(shadow, detection, bannerType, field) {
     // Find the content container (second child after <style>)
     const contentDiv = shadow.querySelector('div');
     if (!contentDiv) return;
@@ -418,22 +499,19 @@
     }
 
     // Re-attach events since innerHTML replaced the DOM
-    const field = findFieldForShadow(shadow);
     if (field && bannerType !== 'loading') {
       attachEvents(shadow, field, detection);
     }
   }
 
   /**
-   * Find the field associated with a shadow root by checking the WeakMap.
-   * (Reverse lookup — only used for update path.)
+   * Find the field associated with a shadow root.
+   * NOTE: With fixed-position banners on document.body, DOM proximity
+   * lookup no longer works. This function is kept as a stub — callers
+   * should pass the field reference directly instead.
+   * @deprecated Use direct field reference from fieldBanners WeakMap.
    */
-  function findFieldForShadow(shadow) {
-    // Since WeakMap doesn't have iteration, we use the host element's position
-    const host = shadow.host;
-    if (host && host.nextElementSibling) {
-      return host.nextElementSibling;
-    }
+  function findFieldForShadow(/* shadow */) {
     return null;
   }
 
@@ -442,22 +520,40 @@
    *
    * @param {Element} field
    */
-  function hideBanner(field) {
+  function hideBanner(field, options = {}) {
     if (!field) return;
 
     const existing = fieldBanners.get(field);
     if (!existing) return;
 
-    // Animate out, then remove
+    const immediate = options.immediate === true || existing.type === 'loading';
+    if (!immediate) {
+      const shownAt = bannerShownAt.get(field) || 0;
+      const elapsed = Date.now() - shownAt;
+      const remaining = MIN_BANNER_DISPLAY_MS - elapsed;
+
+      if (remaining > 0) {
+        clearPendingHide(field);
+        const timer = setTimeout(() => {
+          hideBanner(field, { immediate: true });
+        }, remaining);
+        pendingHideTimers.set(field, timer);
+        return;
+      }
+    }
+
+    clearPendingHide(field);
+    bannerShownAt.delete(field);
+
+    // Animate out smoothly, then remove from DOM
     const banner = existing.shadow.querySelector('.pg-banner');
     if (banner) {
-      banner.style.transition = 'opacity 120ms ease, transform 120ms ease';
       banner.style.opacity = '0';
-      banner.style.transform = 'translateY(-8px)';
+      banner.style.transform = 'translateY(-6px)';
 
       setTimeout(() => {
         existing.host.remove();
-      }, 130);
+      }, 220);
     } else {
       existing.host.remove();
     }
@@ -473,6 +569,7 @@
    *
    * Actions:
    *   - "edit"             → Hide banner, focus field
+   *   - "protect"          → Apply masking to field
    *   - "send"             → Dispatch pg-send-anyway, hide banner
    *   - "remove-injection" → Dispatch pg-remove-injection on field
    *   - "close"            → Hide banner
@@ -482,42 +579,51 @@
    * @param {object}     detection
    */
   function attachEvents(shadow, field, detection) {
+    if (boundShadows.has(shadow)) return;
+    boundShadows.add(shadow);
+
     shadow.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-action]');
       if (!btn) return;
 
       const action = btn.dataset.action;
+      const currentDetection = fieldBanners.get(field)?.detection || detection;
 
       switch (action) {
         case 'edit':
-          hideBanner(field);
-          // Restore original value if possible
-          if (__PG.restoreOriginal) {
-            __PG.restoreOriginal(field);
-          }
+          field.dispatchEvent(new CustomEvent('pg-edit', { bubbles: true }));
+          hideBanner(field, { immediate: true });
           field.focus();
+          break;
+
+        case 'protect':
+          field.dispatchEvent(new CustomEvent('pg-protect', {
+            bubbles: true,
+            detail: { detection: currentDetection },
+          }));
+          hideBanner(field, { immediate: true });
           break;
 
         case 'send':
           field.dispatchEvent(new CustomEvent('pg-send-anyway', {
             bubbles: true,
-            detail: { detection },
+            detail: { detection: currentDetection },
           }));
-          hideBanner(field);
+          hideBanner(field, { immediate: true });
           break;
 
         case 'remove-injection':
           field.dispatchEvent(new CustomEvent('pg-remove-injection', {
             bubbles: true,
-            detail: { detection },
+            detail: { detection: currentDetection },
           }));
           // Remove injection text from field
-          removeInjectionFromField(field, detection);
-          hideBanner(field);
+          removeInjectionFromField(field, currentDetection || { injectionResults: [] });
+          hideBanner(field, { immediate: true });
           break;
 
         case 'close':
-          hideBanner(field);
+          hideBanner(field, { immediate: true });
           break;
       }
     });
@@ -535,16 +641,30 @@
     let value = __PG.getFieldValue ? __PG.getFieldValue(field) : (field.value || field.innerText || '');
 
     // Remove each injection match from the text (in reverse to preserve indices)
-    const sorted = [...detection.injectionResults].sort((a, b) => b.startIndex - a.startIndex);
+    const sorted = [...detection.injectionResults].sort((a, b) => {
+      if (typeof a.startIndex === 'number' && typeof b.startIndex === 'number') {
+        return b.startIndex - a.startIndex;
+      }
+      return 0;
+    });
+
     for (const match of sorted) {
-      value = value.slice(0, match.startIndex) + value.slice(match.endIndex);
+      if (typeof match.startIndex === 'number' && typeof match.endIndex === 'number') {
+        value = value.slice(0, match.startIndex) + value.slice(match.endIndex);
+      } else if (match.matchText) {
+        // Fallback for LLM results which don't have exact indices
+        value = value.replace(match.matchText, '');
+      }
     }
 
-    // Write cleaned value back
-    if (field.isContentEditable) {
-      field.innerText = value.trim();
+    const cleanedValue = value.trim();
+    if (__PG.setFieldValue) {
+      __PG.setFieldValue(field, cleanedValue);
+    } else if (field.isContentEditable) {
+      field.innerText = cleanedValue;
     } else {
-      field.value = value.trim();
+      field.value = cleanedValue;
+      field.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
     field.focus();
@@ -575,6 +695,10 @@
     return fieldBanners.has(field);
   }
 
+  function getBannerType(field) {
+    return fieldBanners.get(field)?.type || null;
+  }
+
 
   function showLoadingBanner(field) {
     showBanner(field, null, true);
@@ -585,5 +709,6 @@
   __PG.hideBanner = hideBanner;
   __PG.showLoadingBanner = showLoadingBanner;
   __PG.hasBanner = hasBanner;
+  __PG.getBannerType = getBannerType;
 
 })();

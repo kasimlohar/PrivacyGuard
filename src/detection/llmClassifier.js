@@ -50,7 +50,7 @@ function preMaskText(text) {
  * @param {string} domain - Current location.hostname
  * @returns {Promise<object|null>} - Returns matched category data or null
  */
-export async function classifyWithLLM(text, domain) {
+async function classifyWithLLM(text, domain) {
   if (!text || typeof text !== 'string') return null;
 
   // 1. Decision Logic Constraints
