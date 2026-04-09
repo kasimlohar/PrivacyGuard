@@ -44,14 +44,17 @@ For full system details, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Screenshots
 
-> Replace placeholders with actual screenshots before publishing.
+### Banner UI
+![PrivacyGuard Banner UI](<screenshots/Screenshot 2026-04-09 212738.png>)
 
-- **Banner UI**  
-  `docs/screenshots/banner.png`
-- **Blocking Modal**  
-  `docs/screenshots/modal.png`
-- **Popup Dashboard**  
-  `docs/screenshots/popup.png`
+### Blocking Modal
+![PrivacyGuard Blocking Modal](<screenshots/Screenshot 2026-04-09 212746.png>)
+
+### Popup Dashboard
+![PrivacyGuard Popup Dashboard](<screenshots/Screenshot 2026-04-09 212822.png>)
+
+### Additional Flow View
+![PrivacyGuard Additional Flow](<screenshots/Screenshot 2026-04-09 212901.png>)
 
 ## Installation
 
