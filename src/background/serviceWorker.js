@@ -124,5 +124,3 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabDetections.delete(tabId);
 });
-
-console.log(`${TAG} Service worker initialized.`);

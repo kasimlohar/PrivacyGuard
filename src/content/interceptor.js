@@ -32,7 +32,6 @@
     const ttl = Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : DEFAULT_BYPASS_TTL_MS;
     bypassState.remaining = 1;
     bypassState.expiresAt = Date.now() + ttl;
-    console.log(`${TAG} Interceptor bypass armed`, { ttlMs: ttl });
   }
 
   function consumeBypassOnce() {

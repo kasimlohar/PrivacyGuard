@@ -475,7 +475,6 @@
       bannerShownAt.delete(field);
     }
 
-    console.log(`${TAG} Banner shown: ${bannerType}`);
   }
 
   /**

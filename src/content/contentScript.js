@@ -86,8 +86,6 @@
         ? `<${tag} type="${type}">`
         : `<${tag}>`;
 
-    console.log(`${TAG} Field discovered: ${descriptor}`);
-
     // Attach input/paste/keyup listeners (from fieldScanner.js)
     if (window.__PrivacyGuard && window.__PrivacyGuard.attachFieldListeners) {
       window.__PrivacyGuard.attachFieldListeners(field);
@@ -102,9 +100,6 @@
    */
   function scanExistingFields() {
     const fields = findInputFields(document);
-    if (fields.length > 0) {
-      console.log(`${TAG} Initial scan: found ${fields.length} input field(s)`);
-    }
     fields.forEach(processField);
   }
 
@@ -181,7 +176,6 @@
       characterData: false,
     });
 
-    console.log(`${TAG} MutationObserver active`);
   }
 
   /**
@@ -208,8 +202,6 @@
    *   2. Body doesn't exist → wait for DOMContentLoaded.
    */
   function init() {
-    console.log(`${TAG} Content script initialized on ${location.hostname}`);
-
     if (document.body) {
       bootstrap();
     } else {
@@ -235,11 +227,9 @@
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg?.type === 'PRIVACYGUARD_DISABLE') {
-        console.log(`${TAG} Extension disabled — disconnecting observer`);
         disconnectObserver();
       }
       if (msg?.type === 'PRIVACYGUARD_ENABLE') {
-        console.log(`${TAG} Extension re-enabled — reconnecting observer`);
         bootstrap();
       }
     });
@@ -262,7 +252,6 @@
       const parent = document.head || document.documentElement;
       if (parent) {
         parent.appendChild(script);
-        console.log(`${TAG} Interceptor injected into MAIN world`);
       }
     } catch (e) {
       console.warn(`${TAG} Failed to inject interceptor`, e);

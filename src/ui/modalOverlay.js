@@ -433,7 +433,6 @@
     // Set up focus trap
     trapFocus(shadow);
 
-    console.log('[PrivacyGuard] Modal shown:', isInjection ? 'injection' : 'critical-pii');
   }
 
   /**
