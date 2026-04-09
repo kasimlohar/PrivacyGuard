@@ -207,14 +207,43 @@ function maskAll(text, detections) {
   if (!text || typeof text !== 'string') return text ?? '';
   if (!detections || detections.length === 0) return text;
 
-  // Sort by startIndex DESCENDING — so we replace from right to left
-  // This keeps earlier indices valid as we splice the string.
-  const sorted = [...detections].sort((a, b) => b.startIndex - a.startIndex);
+  // Normalize + validate detections before replacement.
+  // We only accept concrete, in-range numeric spans.
+  const normalized = detections
+    .map((det) => {
+      const start = Number.isInteger(det?.startIndex) ? det.startIndex : -1;
+      const end = Number.isInteger(det?.endIndex) ? det.endIndex : -1;
+      if (start < 0 || end <= start || start >= text.length) return null;
+      return {
+        ...det,
+        startIndex: start,
+        endIndex: Math.min(end, text.length),
+      };
+    })
+    .filter(Boolean);
+
+  if (normalized.length === 0) return text;
+
+  // Process from right to left so index positions remain valid.
+  // Tie-break with longer spans first for deterministic overlap handling.
+  const sorted = normalized.sort((a, b) => {
+    if (a.startIndex !== b.startIndex) return b.startIndex - a.startIndex;
+    return b.endIndex - a.endIndex;
+  });
 
   let result = text;
+  let rightBoundary = Number.POSITIVE_INFINITY;
+
   for (const det of sorted) {
+    // Overlap guard: skip ranges that intersect a segment we already replaced.
+    // This prevents corrupted output when upstream provides overlapping matches.
+    if (det.endIndex > rightBoundary) {
+      continue;
+    }
+
     const masked = maskValue(det.matchText, det.ruleId);
     result = result.slice(0, det.startIndex) + masked + result.slice(det.endIndex);
+    rightBoundary = det.startIndex;
   }
 
   return result;
